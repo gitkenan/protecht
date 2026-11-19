@@ -1,10 +1,10 @@
 # Architecture
 
-protecht is a single-process HTTP service plus a simulated device client. There is no separate worker, queue, or user account system.
+protecht is a single-process HTTP service plus device clients. There is no separate worker, queue, or user account system.
 
 ```
 cmd/device  --HTTP-->  cmd/server
-                           |
+cmd/agent   --HTTP-->      |
                         internal/api
                          /        \
                  internal/core   internal/store
@@ -23,6 +23,8 @@ cmd/device  --HTTP-->  cmd/server
 `internal/store` persists those types in SQLite. `Open` creates the schema. Evidence bytes are stored as blobs. Event idempotency is the primary key `(device_id, id)`: a replay returns the original row and does not overwrite it. The pool is one connection, so store methods must finish one query before starting the next.
 
 `cmd/device` is not part of the server. It registers, uploads evidence, submits an event, replays it, and prints the timeline, then exits. It decodes the timeline JSON into `store.EventRow`, so the simulator currently depends on a store view type.
+
+`cmd/agent` is not part of the server either. It is a Windows foreground-window client: it polls the active window, registers once, and submits an event per change. The registration token is stored in a local file and reused. The agent speaks only the HTTP contract and does not import `internal/store`.
 
 ## Boundaries
 

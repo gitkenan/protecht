@@ -13,6 +13,7 @@ device that exercises the whole flow.
 ```
 cmd/server        HTTP API + HTML timeline (binds 127.0.0.1 by default)
 cmd/device        simulated device client (runs the full flow, then exits)
+cmd/agent         Windows foreground-window agent (long-running client)
 internal/core     platform-independent domain types, validation, id/token helpers
 internal/store    SQLite persistence
 internal/api      HTTP handlers, auth, HTML template
@@ -28,6 +29,51 @@ go build ./cmd/server ./cmd/device
 ./device -server http://127.0.0.1:8080 -name sim-device
 # then open http://127.0.0.1:8080/ for the timeline
 ```
+
+## Windows activity agent
+
+`cmd/agent` polls the foreground window and, when it changes, uploads a JSON
+observation as evidence and submits an `application.foreground` event that
+references it. The first poll is reported immediately; later polls default to
+every 3 seconds. An unchanged window is not uploaded again.
+
+The agent is Windows-only. It reads the foreground window's title, the
+process image name, and the executable path. The path (and therefore the
+process name) is left empty when the process cannot be opened, which is
+normal for some protected processes. The process reported is the one that
+owns the foreground window; for some Store apps that is
+`ApplicationFrameHost.exe` rather than the hosted app.
+
+Build it from any platform:
+
+```sh
+GOOS=windows GOARCH=amd64 go build -o agent.exe ./cmd/agent
+```
+
+On Windows, with the server already running:
+
+```sh
+go build -o agent.exe ./cmd/agent
+agent.exe -server http://127.0.0.1:8080 -name my-pc -interval 3s -config agent.json
+```
+
+| flag | default | meaning |
+|------|---------|---------|
+| `-server` | `http://127.0.0.1:8080` | server base URL |
+| `-name` | machine hostname, or `win-agent` | device name, used only on first registration |
+| `-interval` | `3s` | foreground poll interval |
+| `-config` | `agent.json` | file holding the device id and bearer token |
+
+The token is returned only at registration. The agent saves it in the config
+file (mode `0600`) and reuses it on later runs; `-name` is then ignored.
+Delete the file to register a different device. Do not share it — it
+authenticates writes. A file that exists but cannot be parsed is left as-is
+rather than replaced with a new registration.
+
+Observations are printed to stdout when the foreground window changes. Upload
+failures are logged to stderr and retried on the next poll with the same
+event id, so a lost response does not create a duplicate event. Stop the
+agent with Ctrl+C.
 
 ## Test
 

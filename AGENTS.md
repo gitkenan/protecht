@@ -10,7 +10,7 @@ Requires Go 1.23+. The only third-party dependency is `github.com/mattn/go-sqlit
 
 ```sh
 go test ./...
-go build ./cmd/server ./cmd/device
+go build ./cmd/server ./cmd/device ./cmd/agent
 ```
 
 ## Conventions
